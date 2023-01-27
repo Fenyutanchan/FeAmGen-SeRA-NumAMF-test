@@ -1,0 +1,7 @@
+[deps]
+FeAmGen = "92bc0bee-949a-4e30-bda4-7bc0a90d92b9"
+NumAMF = "61818568-3a36-4501-84fe-78a065ee432b"
+SeRA = "91cf2d6d-5298-43b6-b923-c3820f8fd459"
+SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
+SymEngineExt = "eb43aea2-30a6-470d-b25b-3f3789752db4"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

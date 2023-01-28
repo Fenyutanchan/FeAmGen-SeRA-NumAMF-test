@@ -4,10 +4,10 @@ function my_generate_loop_mom_canonicalization_map(
 )::Dict{Basic, Basic}
     # In the beginning, we suppose normalize_loop_mom has been used.
 
-    # @vars q1,q2,q3,q4
+    @vars q1
     @funs Den
     qi_list         =   [Basic("q$ii") for ii ∈ 1:n_loop]
-    vanish_qi_dict  =   Dict{Basic,Basic}(qi_list .=> zero(Basic))
+    vanish_qi_dict  =   Dict{Basic, Basic}(qi_list .=> zero(Basic))
 
     @assert all(den_ -> get_name(den_) == "Den", loop_den_list)
 
@@ -15,7 +15,6 @@ function my_generate_loop_mom_canonicalization_map(
     den_ext_mom_list    =   subs.(den_mom_list, Ref(vanish_qi_dict))
     vac_den_mom_list    =   expand.(den_mom_list - den_ext_mom_list)
     unique!(vac_den_mom_list)
-
 
     opposite_sign_pair_list =   Vector{Tuple{Basic, Basic}}()
     same_sign_pair_list     =   Vector{Tuple{Basic, Basic}}()
@@ -38,9 +37,9 @@ function my_generate_loop_mom_canonicalization_map(
             end # if
 
             if qi_coeff * qj_coeff > 0
-                push!( same_sign_qiqj_mom_list, mom )
+                push!(same_sign_qiqj_mom_list, mom)
             else
-                push!( opposite_sign_qiqj_mom_list, mom )
+                push!(opposite_sign_qiqj_mom_list, mom)
             end # if
         end # for mom 
 
@@ -49,39 +48,52 @@ function my_generate_loop_mom_canonicalization_map(
         if isempty(same_sign_qiqj_mom_list) && isempty(opposite_sign_qiqj_mom_list)
             continue
         elseif !isempty(same_sign_qiqj_mom_list)
-            push!( same_sign_pair_list, (qi,qj) )
+            push!(same_sign_pair_list, (qi, qj))
         elseif !isempty(opposite_sign_qiqj_mom_list)
-            push!( opposite_sign_pair_list, (qi,qj) )
+            push!(opposite_sign_pair_list, (qi, qj))
         end # if
 
         end # for qj_index
     end # for qi_index
 
-
-    q1_same_sign_qi_list = Basic[ q1 ]
+    q1_same_sign_qi_list = Basic[q1]
     while true
-        pair_list = filter( one_pair->!(isempty∘intersect)(q1_same_sign_qi_list,one_pair), same_sign_pair_list )
+        pair_list   =   filter(
+            one_pair -> !(isempty ∘ intersect)(q1_same_sign_qi_list, one_pair),
+            same_sign_pair_list
+        )
         if isempty(pair_list)
-        break # none in same_sign_pair_list is related to q1_same_sign_qi_list
+            break # none in same_sign_pair_list is related to q1_same_sign_qi_list
         end # if
-        union!( q1_same_sign_qi_list, pair_list... )
-        setdiff!( same_sign_pair_list, pair_list )
+        union!(q1_same_sign_qi_list, pair_list...)
+        setdiff!(same_sign_pair_list, pair_list)
     end # while
 
-    pos = findfirst( one_pair ->!(isempty∘intersect)(one_pair,q1), opposite_sign_pair_list )
-    q1_opposite_sign_qi_list = pos == nothing ? Vector{Basic}() : Basic[ (first∘setdiff)( opposite_sign_pair_list[pos], q1 ) ]
+    pos =   findfirst(
+        one_pair -> !(isempty ∘ intersect)(one_pair, q1),
+        opposite_sign_pair_list
+    )
+    q1_opposite_sign_qi_list    =   (
+        pos === nothing ? Vector{Basic}() : Basic[
+            (first ∘ setdiff)(opposite_sign_pair_list[pos], q1)
+        ]
+    )
 
     while !isempty(q1_opposite_sign_qi_list)
-        pair_list = filter( one_pair->!(isempty∘intersect)(q1_opposite_sign_qi_list,one_pair), same_sign_pair_list )
+        pair_list   =   filter(
+            one_pair -> !(isempty ∘ intersect)(q1_opposite_sign_qi_list, one_pair),
+            same_sign_pair_list
+        )
         if isempty(pair_list)
-        break # none in same_sign_pair_list is related to q1_opposite_sign_qi_list
+            break # none in same_sign_pair_list is related to q1_opposite_sign_qi_list
         end # if
-        union!( q1_opposite_sign_qi_list, pair_list... )
-        setdiff!( same_sign_pair_list, pair_list )
+        union!(q1_opposite_sign_qi_list, pair_list...)
+        setdiff!(same_sign_pair_list, pair_list)
     end # while
     
-    norm_dict = Dict{Basic,Basic}( map( qi -> qi=>-qi, q1_opposite_sign_qi_list ) )
+    norm_dict   =   Dict{Basic, Basic}(
+        map(qi -> (qi => -qi), q1_opposite_sign_qi_list) 
+    )
 
     return norm_dict
-
 end # function 

@@ -7,6 +7,7 @@ using   SymEngine
 
 include("normalize_loop_mom.jl")
 include("generate_loop_mom_canonicalization_map.jl")
+include("generate_loop_mom_canonicalization_map_v2.jl")
 
 n_den_tot   =   10
 n_leg_tot   =   4
@@ -170,21 +171,28 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
         mom_list_bench[ii]  =   expand(q_sum_bench + bench_sign * k_sum)
     end
 
-    loop_den_list   =   Den.(mom_list, m_list, ieta_list)
-    norm_dict       =   my_generate_loop_mom_canonicalization_map(n_loop, loop_den_list)
-    loop_den_list   =   my_normalize_loop_mom(subs.(loop_den_list, Ref(norm_dict)))
-
+    loop_den_list       =   Den.(mom_list, m_list, ieta_list)
+    norm_dict_v1        =   my_generate_loop_mom_canonicalization_map(n_loop, loop_den_list)
+    norm_dict_v2        =   my_generate_loop_mom_canonicalization_map_v2(n_loop, loop_den_list)
+    loop_den_list_v1    =   my_normalize_loop_mom(subs.(loop_den_list, Ref(norm_dict_v1)))
+    loop_den_list_v2    =   my_normalize_loop_mom(subs.(loop_den_list, Ref(norm_dict_v2)))
     loop_den_list_bench =   Den.(mom_list_bench, m_list, ieta_list)
 
     try
-        @assert loop_den_list == loop_den_list_bench
+        @assert loop_den_list_v2 == loop_den_list_bench
     catch
         println()
         println(n_loop)
-        println(norm_dict)
+        println(norm_dict_v1)
+        println(norm_dict_v2)
         println(q1_same_sign_qi_list)
         println(Den.(mom_list, m_list, ieta_list))
-        println(loop_den_list)
+        println()
+        println(loop_den_list_v1)
+        println()
+        println(loop_den_list_v2)
+        println()
+        println(non_trivial_no_intersection_flag)
         println(loop_den_list_bench)
     end
 end

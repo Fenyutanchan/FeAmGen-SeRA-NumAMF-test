@@ -101,45 +101,6 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
         )
     end
 
-    disjoint_partition_list =   begin
-        indices         =   [ii for ii ∈ 1:n_loop]
-        final_partition =   Vector{Int}[]
-        while !isempty(indices)
-            this_partition  =   [first(indices)]
-            setdiff!(indices, this_partition)
-
-            last_length =   0
-            this_length =   1
-            while true
-                for index ∈ this_partition[last_length+1:end]
-                    mom_indices     =   findall(
-                        !iszero, coeff.(mom_list, q_list[index])
-                    )
-                    indices_indices =   findall(
-                        ii -> any(
-                            (!iszero ∘ coeff).(
-                                mom_list[mom_indices],
-                                q_list[ii]
-                            )
-                        ),
-                        indices
-                    )
-                    union!(this_partition, indices[indices_indices])
-                    setdiff!(indices, this_partition)
-                end
-
-                last_length =   this_length
-                this_length =   length(this_partition)
-                if last_length == this_length
-                    break
-                end
-            end
-
-            push!(final_partition, this_partition)
-        end
-        final_partition
-    end
-
     for ii ∈ 1:n_den
         mom     =   mom_list[ii]
         k_sum   =   subs(
@@ -178,7 +139,6 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
     catch
         println()
         println(n_loop)
-        println(disjoint_partition_list)
         println(norm_dict_v1)
         println(norm_dict_v2)
         println(q1_same_sign_qi_list)

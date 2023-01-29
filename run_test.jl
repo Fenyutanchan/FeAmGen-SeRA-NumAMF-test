@@ -1,9 +1,11 @@
 for ii ∈ 1:Threads.nthreads()
-    rm("$ii.log")
+    if isfile("$ii.log")
+        rm("$ii.log")
+    end
 end
 
 Threads.@threads for ii ∈ 1:100
     cmd =   @cmd "julia my-test.jl"
     log =   "$(Threads.threadid()).log"
-    (run ∘ pipeline)(cmd; stdout=log, append=true)
+    (run ∘ pipeline)(cmd; stdout=log, stderr=log, append=true)
 end

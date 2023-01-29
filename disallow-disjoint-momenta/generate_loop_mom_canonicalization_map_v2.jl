@@ -56,39 +56,48 @@ function my_generate_loop_mom_canonicalization_map_v2(
         end # for qj_index
     end # for qi_index
 
-    q1_same_sign_qi_list = Basic[q1]
-    while true
-        pair_list   =   filter(
-            one_pair -> !(isempty ∘ intersect)(q1_same_sign_qi_list, one_pair),
+    q1_same_sign_qi_list        =   Basic[q1]
+    q1_opposite_sign_qi_list    =   Basic[]
+    while !isempty(same_sign_pair_list) || !isempty(opposite_sign_pair_list)
+        q1_same_sign_pair_list   =   filter(
+            one_pair -> !(isempty ∘ intersect)(one_pair, q1_same_sign_qi_list),
             same_sign_pair_list
         )
-        if isempty(pair_list)
-            break # none in same_sign_pair_list is related to q1_same_sign_qi_list
-        end # if
-        union!(q1_same_sign_qi_list, pair_list...)
-        setdiff!(same_sign_pair_list, pair_list)
-    end # while
-
-    pos_list    =   findall(
-        one_pair -> !(isempty ∘ intersect)(one_pair, q1_same_sign_qi_list),
-        opposite_sign_pair_list
-    )
-    q1_opposite_sign_qi_list    =   (
-        isempty(pos_list) ?
-        Vector{Basic}() : 
-        (first ∘ setdiff).(opposite_sign_pair_list[pos_list], Ref(q1_same_sign_qi_list))
-    )
-
-    while !isempty(q1_opposite_sign_qi_list)
-        pair_list   =   filter(
-            one_pair -> !(isempty ∘ intersect)(q1_opposite_sign_qi_list, one_pair),
+        union!(q1_same_sign_qi_list, q1_same_sign_pair_list...)
+        setdiff!(same_sign_pair_list, q1_same_sign_pair_list)
+    
+        q1_opposite_sign_pair_list  =   filter(
+            one_pair -> !(isempty ∘ intersect)(one_pair, q1_same_sign_qi_list),
+            opposite_sign_pair_list
+        )
+        union!(
+            q1_opposite_sign_qi_list,
+            [
+                (first ∘ setdiff)(one_pair, q1_same_sign_qi_list)
+                for one_pair ∈ q1_opposite_sign_pair_list
+            ]
+        )
+        setdiff!(opposite_sign_pair_list, q1_opposite_sign_pair_list)
+    
+        q1_opposite_sign_pair_list  =   filter(
+            one_pair -> !(isempty ∘ intersect)(one_pair, q1_opposite_sign_qi_list),
             same_sign_pair_list
         )
-        if isempty(pair_list)
-            break # none in same_sign_pair_list is related to q1_opposite_sign_qi_list
-        end # if
-        union!(q1_opposite_sign_qi_list, pair_list...)
-        setdiff!(same_sign_pair_list, pair_list)
+        union!(q1_opposite_sign_qi_list, q1_opposite_sign_pair_list...)
+        setdiff!(same_sign_pair_list, q1_opposite_sign_pair_list)
+    
+        q1_same_sign_pair_list  =   filter(
+            one_pair -> !(isempty ∘ intersect)(one_pair, q1_opposite_sign_qi_list),
+            opposite_sign_pair_list
+        )
+        union!(
+            q1_same_sign_qi_list,
+            [
+                (first ∘ setdiff)(one_pair, q1_opposite_sign_qi_list)
+                for one_pair ∈ q1_same_sign_pair_list
+            ]
+        )
+        setdiff!(opposite_sign_pair_list, q1_same_sign_pair_list)
     end # while
     
     norm_dict   =   Dict{Basic, Basic}(

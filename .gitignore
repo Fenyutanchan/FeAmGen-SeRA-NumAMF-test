@@ -2,4 +2,6 @@ FeAmGen.jl/
 NumAMF.jl/
 SeRA.jl/
 
+logs/
+
 *.log

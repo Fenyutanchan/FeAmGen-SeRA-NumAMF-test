@@ -97,7 +97,7 @@ function my_generate_loop_mom_canonicalization_map_v2(
                 for one_pair ∈ q1_same_sign_pair_list
             ]
         )
-        setdiff!(opposite_sign_pair_list, q1_opposite_sign_pair_list)
+        setdiff!(opposite_sign_pair_list, q1_same_sign_pair_list)
     end # while
     
     norm_dict   =   Dict{Basic, Basic}(

@@ -10,8 +10,8 @@ include("generate_loop_mom_canonicalization_map.jl")
 include("generate_loop_mom_canonicalization_map_v2.jl")
 
 n_den_tot   =   10
-n_leg_tot   =   4
-n_loop_tot  =   6
+n_leg_tot   =   10
+n_loop_tot  =   10
 
 q_str_list  =   ["q$ii" for ii ∈ 1:n_loop_tot]
 k_str_list  =   ["k$ii" for ii ∈ 1:n_leg_tot]
@@ -37,10 +37,9 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
         for m_str ∈ m_str_list[1:n_den]
     ]
     ieta_list   =   rand([Basic("ieta"), zero(Basic)], n_den)
+    q_sign_list =   rand([-1, 1], n_loop)
 
-    q_sign_list                 =   rand([-1, 1], n_loop)
-
-    mom_list        =   Vector{Basic}(undef, n_den)
+    mom_list    =   Vector{Basic}(undef, n_den)
     while true
         for ii ∈ 1:n_den
             q_sum   =   rand([-1, 1]) * sum(
@@ -57,13 +56,53 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
     
             mom_list[ii]    =   expand(q_sum + k_sum)
         end
+
+        disjoint_partition_list =   begin
+            indices =   [ii for ii ∈ 1:n_loop]
+            output  =   Vector{Int}[]
+            while !isempty(indices)
+                this_partition  =   [first(indices)]
+                setdiff!(indices, this_partition)
+    
+                last_length =   0
+                this_length =   1
+                while true
+                    for index ∈ this_partition[last_length+1:end]
+                        mom_indices     =   findall(
+                            !iszero, coeff.(mom_list, q_list[index])
+                        )
+                        indices_indices =   findall(
+                            ii -> any(
+                                (!iszero ∘ coeff).(
+                                    mom_list[mom_indices],
+                                    q_list[ii]
+                                )
+                            ),
+                            indices
+                        )
+                        union!(this_partition, indices[indices_indices])
+                        setdiff!(indices, this_partition)
+                    end
+    
+                    last_length =   this_length
+                    this_length =   length(this_partition)
+                    if last_length == this_length
+                        break
+                    end
+                end
+    
+                push!(output, this_partition)
+            end
+            output
+        end
+
         if all(
             qi_ -> any(
                 mom_ -> !(iszero ∘ coeff)(mom_, qi_),
                 mom_list
             ),
             q_list[1:n_loop]
-        )
+        ) && length(disjoint_partition_list) == 1
             break
         end
     end
@@ -81,64 +120,26 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
         q1_same_sign_qi_list
     )
     
-    non_trivial_no_intersection_flag    =   if isempty(q1_opposite_sign_qi_list)
-        false
-    else
-        have_q1_same_sign_qi_list       =   [
-            (isempty ∘ findall)(!iszero, coeff.(mom, q1_same_sign_qi_list))
-            for mom ∈ mom_list
-        ]
-        have_q1_opposite_sign_qi_list   =   [
-            (isempty ∘ findall)(!iszero, coeff.(mom, q1_opposite_sign_qi_list))
-            for mom ∈ mom_list
-        ]
+    # non_trivial_no_intersection_flag    =   if isempty(q1_opposite_sign_qi_list)
+    #     false
+    # else
+    #     have_q1_same_sign_qi_list       =   [
+    #         (isempty ∘ findall)(!iszero, coeff.(mom, q1_same_sign_qi_list))
+    #         for mom ∈ mom_list
+    #     ]
+    #     have_q1_opposite_sign_qi_list   =   [
+    #         (isempty ∘ findall)(!iszero, coeff.(mom, q1_opposite_sign_qi_list))
+    #         for mom ∈ mom_list
+    #     ]
 
-        all(
-            xor.(
-                have_q1_same_sign_qi_list,
-                have_q1_opposite_sign_qi_list
-            )
-        )
-    end
-
-    disjoint_partition_list =   begin
-        indices         =   [ii for ii ∈ 1:n_loop]
-        final_partition =   Vector{Int}[]
-        while !isempty(indices)
-            this_partition  =   [first(indices)]
-            setdiff!(indices, this_partition)
-
-            last_length =   0
-            this_length =   1
-            while true
-                for index ∈ this_partition[last_length+1:end]
-                    mom_indices     =   findall(
-                        !iszero, coeff.(mom_list, q_list[index])
-                    )
-                    indices_indices =   findall(
-                        ii -> any(
-                            (!iszero ∘ coeff).(
-                                mom_list[mom_indices],
-                                q_list[ii]
-                            )
-                        ),
-                        indices
-                    )
-                    union!(this_partition, indices[indices_indices])
-                    setdiff!(indices, this_partition)
-                end
-
-                last_length =   this_length
-                this_length =   length(this_partition)
-                if last_length == this_length
-                    break
-                end
-            end
-
-            push!(final_partition, this_partition)
-        end
-        final_partition
-    end
+    #     all(
+    #         xor.(
+    #             have_q1_same_sign_qi_list,
+    #             have_q1_opposite_sign_qi_list
+    #         )
+    #     )
+    # end
+    # @assert non_trivial_no_intersection_flag == false
 
     for ii ∈ 1:n_den
         mom     =   mom_list[ii]
@@ -154,11 +155,7 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
             first_qi_index  =   findfirst(!iszero, q_coeff_list)
             @assert !isnothing(first_qi_index)
             first_qi        =   q_list[first_qi_index]
-            (
-                non_trivial_no_intersection_flag ? 
-                q_coeff_list[first_qi_index] :
-                (first_qi ∈ q1_same_sign_qi_list ? 1 : -1) * q_coeff_list[first_qi_index]
-            ), sum(
+            (first_qi ∈ q1_same_sign_qi_list ? 1 : -1) * q_coeff_list[first_qi_index], sum(
                 q_list[findall(!iszero, q_coeff_list)]
             )
         end
@@ -178,7 +175,7 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
     catch
         println()
         println(n_loop)
-        println(disjoint_partition_list)
+        # println(disjoint_partition_list)
         println(norm_dict_v1)
         println(norm_dict_v2)
         println(q1_same_sign_qi_list)
@@ -188,7 +185,7 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
         println()
         println(loop_den_list_v2)
         println()
-        println(non_trivial_no_intersection_flag)
+        # println(non_trivial_no_intersection_flag)
         println(loop_den_list_bench)
     end
 end

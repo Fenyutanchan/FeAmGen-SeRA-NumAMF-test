@@ -5,9 +5,10 @@ Pkg.instantiate()
 using   SeRA
 using   SymEngine
 
-include("normalize_loop_mom.jl")
+include("disjoint_loop_momenta_partition.jl")
 include("generate_loop_mom_canonicalization_map.jl")
 include("generate_loop_mom_canonicalization_map_v2.jl")
+include("normalize_loop_mom.jl")
 
 n_den_tot   =   10
 n_leg_tot   =   10
@@ -57,44 +58,48 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
             mom_list[ii]    =   expand(q_sum + k_sum)
         end
 
-        disjoint_partition_list =   begin
-            indices =   [ii for ii ∈ 1:n_loop]
-            output  =   Vector{Int}[]
-            while !isempty(indices)
-                this_partition  =   [first(indices)]
-                setdiff!(indices, this_partition)
+        # disjoint_partition_list =   begin
+        #     indices =   [ii for ii ∈ 1:n_loop]
+        #     output  =   Vector{Int}[]
+        #     while !isempty(indices)
+        #         this_partition  =   [first(indices)]
+        #         setdiff!(indices, this_partition)
     
-                last_length =   0
-                this_length =   1
-                while true
-                    for index ∈ this_partition[last_length+1:end]
-                        mom_indices     =   findall(
-                            !iszero, coeff.(mom_list, q_list[index])
-                        )
-                        indices_indices =   findall(
-                            ii -> any(
-                                (!iszero ∘ coeff).(
-                                    mom_list[mom_indices],
-                                    q_list[ii]
-                                )
-                            ),
-                            indices
-                        )
-                        union!(this_partition, indices[indices_indices])
-                        setdiff!(indices, this_partition)
-                    end
+        #         last_length =   0
+        #         this_length =   1
+        #         while true
+        #             for index ∈ this_partition[last_length+1:end]
+        #                 mom_indices     =   findall(
+        #                     !iszero, coeff.(mom_list, q_list[index])
+        #                 )
+        #                 indices_indices =   findall(
+        #                     ii -> any(
+        #                         (!iszero ∘ coeff).(
+        #                             mom_list[mom_indices],
+        #                             q_list[ii]
+        #                         )
+        #                     ),
+        #                     indices
+        #                 )
+        #                 union!(this_partition, indices[indices_indices])
+        #                 setdiff!(indices, this_partition)
+        #             end
     
-                    last_length =   this_length
-                    this_length =   length(this_partition)
-                    if last_length == this_length
-                        break
-                    end
-                end
+        #             last_length =   this_length
+        #             this_length =   length(this_partition)
+        #             if last_length == this_length
+        #                 break
+        #             end
+        #         end
     
-                push!(output, this_partition)
-            end
-            output
-        end
+        #         push!(output, this_partition)
+        #     end
+        #     output
+        # end
+        q_indices_partition, mom_indices_partition  =   disjoint_loop_momenta_partition(
+            q_list[1:n_loop], mom_list
+        )
+    
 
         if all(
             qi_ -> any(
@@ -102,7 +107,7 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
                 mom_list
             ),
             q_list[1:n_loop]
-        ) && length(disjoint_partition_list) == 1
+        ) && length(q_indices_partition) == 1
             break
         end
     end

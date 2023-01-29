@@ -101,7 +101,7 @@ for n_den ∈ 1:n_den_tot, n_leg ∈ 1:n_leg_tot, n_loop ∈ 1:n_loop_tot
     #     )
     # end
 
-    q_indices_partition, mom_indices_partition   =   disjoint_loop_momenta_partition(
+    q_indices_partition, mom_indices_partition  =   disjoint_loop_momenta_partition(
         q_list[1:n_loop], mom_list
     )
 

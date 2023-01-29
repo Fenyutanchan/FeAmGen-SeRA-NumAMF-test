@@ -2,7 +2,6 @@ import  Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 
-using   SeRA
 using   SymEngine
 
 include("disjoint_loop_momenta_partition.jl")

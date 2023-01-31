@@ -1,5 +1,5 @@
 import  Pkg
-Pkg.activate((dirname ∘ dirname)(@__FILE__))
+Pkg.activate((dirname ∘ dirname ∘ dirname)(@__FILE__))
 Pkg.instantiate()
 
 using   SymEngine

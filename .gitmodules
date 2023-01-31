@@ -1,0 +1,9 @@
+[submodule "FeAmGen.jl"]
+	path = FeAmGen.jl
+	url = git@github.com:Fenyutanchan/FeAmGen.jl.git
+[submodule "NumAMF.jl"]
+	path = NumAMF.jl
+	url = git@github.com:Fenyutanchan/NumAMF2.jl.git
+[submodule "SeRA.jl"]
+	path = SeRA.jl
+	url = git@github.com:Fenyutanchan/SeRA2.jl.git

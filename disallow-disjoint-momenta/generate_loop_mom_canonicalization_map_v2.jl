@@ -21,37 +21,37 @@ function my_generate_loop_mom_canonicalization_map_v2(
     for qi_index ∈ 1:(n_loop-1)
         qi  =   qi_list[qi_index]
         for qj_index ∈ (qi_index+1):n_loop
-        qj = qi_list[qj_index]
+            qj = qi_list[qj_index]
 
-        # find the momentum where both qi and qj have non-zero coefficients
-        same_sign_qiqj_mom_list     =   Vector{Basic}()
-        opposite_sign_qiqj_mom_list =   Vector{Basic}()
-        for mom ∈ vac_den_mom_list 
-            qi_coeff    =   SymEngine.coeff(mom, qi)
-            if iszero(qi_coeff)
+            # find the momentum where both qi and qj have non-zero coefficients
+            same_sign_qiqj_mom_list     =   Vector{Basic}()
+            opposite_sign_qiqj_mom_list =   Vector{Basic}()
+            for mom ∈ vac_den_mom_list 
+                qi_coeff    =   SymEngine.coeff(mom, qi)
+                if iszero(qi_coeff)
+                    continue
+                end # if
+                qj_coeff    =   SymEngine.coeff(mom, qj)
+                if iszero(qj_coeff)
+                    continue
+                end # if
+
+                if qi_coeff * qj_coeff > 0
+                    push!(same_sign_qiqj_mom_list, mom)
+                else
+                    push!(opposite_sign_qiqj_mom_list, mom)
+                end # if
+            end # for mom 
+
+            @assert isempty(same_sign_qiqj_mom_list) || isempty(opposite_sign_qiqj_mom_list)
+
+            if isempty(same_sign_qiqj_mom_list) && isempty(opposite_sign_qiqj_mom_list)
                 continue
+            elseif !isempty(same_sign_qiqj_mom_list)
+                push!(same_sign_pair_list, (qi, qj))
+            elseif !isempty(opposite_sign_qiqj_mom_list)
+                push!(opposite_sign_pair_list, (qi, qj))
             end # if
-            qj_coeff    =   SymEngine.coeff(mom, qj)
-            if iszero(qj_coeff)
-                continue
-            end # if
-
-            if qi_coeff * qj_coeff > 0
-                push!(same_sign_qiqj_mom_list, mom)
-            else
-                push!(opposite_sign_qiqj_mom_list, mom)
-            end # if
-        end # for mom 
-
-        @assert isempty(same_sign_qiqj_mom_list) || isempty(opposite_sign_qiqj_mom_list)
-
-        if isempty(same_sign_qiqj_mom_list) && isempty(opposite_sign_qiqj_mom_list)
-            continue
-        elseif !isempty(same_sign_qiqj_mom_list)
-            push!(same_sign_pair_list, (qi, qj))
-        elseif !isempty(opposite_sign_qiqj_mom_list)
-            push!(opposite_sign_pair_list, (qi, qj))
-        end # if
 
         end # for qj_index
     end # for qi_index

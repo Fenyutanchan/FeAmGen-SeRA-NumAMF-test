@@ -52,6 +52,8 @@ function my_generate_loop_mom_canonicalization_map_v1(
       vac_den_mom_list = map( qi_ -> subs( qi_, q3 => q3_replace ), vac_den_mom_list )
     end # if
   end # if
+
+  ### first part
  
   has_both_q1_q2_pos = findfirst( m_ -> SymEngine.coeff(m_,q1) * SymEngine.coeff(m_,q2) != 0, vac_den_mom_list )
   if has_both_q1_q2_pos ≠ nothing

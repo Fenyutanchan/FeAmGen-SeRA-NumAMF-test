@@ -46,20 +46,37 @@ q_list  =   deepcopy(qi_list)
 #         break
 #     end
 # end
-vacumm_mom_list =   (first ∘ generate_denominator_momenta)(
-    0, n_loop, n_den
+
+# vacumm_mom_list =   (first ∘ generate_denominator_momenta)(
+#     0, n_loop, n_den
+# )
+# unique!(vacumm_mom_list)
+# map!(
+#     mom_ -> begin
+#         tmp_index   =   findfirst(!iszero, coeff.(mom_, qi_list))
+#         @assert !isnothing(tmp_index)
+#         expand(mom_ * coeff(mom_, qi_list[tmp_index]))
+#     end,
+#     vacumm_mom_list,
+#     vacumm_mom_list
+# ) # just the thing `SeRA.normalize_loop_mom()` will do.
+# unique!(vacumm_mom_list)
+# sort!(vacumm_mom_list, by=string)
+# println("origin momenta list: $vacumm_mom_list")
+
+vacumm_mom_list =   Basic.(
+    [
+        "q1",
+        "q1 - q2",
+        "q1 - q2 - q3",
+        "q1 - q2 - q4",
+        "q1 - q3",
+        "q1 - q4",
+        "q2 + q3 + q4",
+        "q2 + q4",
+        "q4"
+    ]
 )
-unique!(vacumm_mom_list)
-map!(
-    mom_ -> begin
-        tmp_index   =   findfirst(!iszero, coeff.(mom_, qi_list))
-        @assert !isnothing(tmp_index)
-        expand(mom_ * coeff(mom_, qi_list[tmp_index]))
-    end,
-    vacumm_mom_list,
-    vacumm_mom_list
-) # just the thing `SeRA.normalize_loop_mom()` will do.
-unique!(vacumm_mom_list)
 println("origin momenta list: $vacumm_mom_list")
 ### end random generation
 
@@ -129,7 +146,8 @@ for ii ∈ eachindex(qi_list)
             )
         ]
         qi_coeff    =   coeff(first_has_qi_mom, qi)
-        qi_replace  =   (1 + qi_coeff) * q_list[ii] - qi_coeff * first_has_qi_mom
+        # qi_replace  =   (1 + qi_coeff) * qi - qi_coeff * first_has_qi_mom
+        qi_replace  =   (1 + (abs ∘ inv)(qi_coeff)) * qi - inv(qi_coeff) * first_has_qi_mom
         
         q_list          =   (expand ∘ subs).(q_list, qi => qi_replace)
         vacumm_mom_list =   (expand ∘ subs).(vacumm_mom_list, qi => qi_replace)
@@ -237,22 +255,40 @@ end # main
 
 main()
 
-# found error, there are confilicts between q1 and q4 signs.
+### Found error: there are confilicts between q1 and q4 signs.
 # julia> include("test-generate_loop_mom_canonicalization_map_v1.jl")
 #   Activating project at `~/workspace/FeAmGen-SeRA-NumAMF-test`
-# origin momenta list: Basic[q1 - q3, q1 - q2, q1 - q2 - q4, q1 - q4, q2 + q3 + q4, q1 - q2 - q3, q1, q4, q2 + q4]
+# origin momenta list: Basic[q1, q1 - q2, q1 - q2 - q3, q1 - q2 - q4, q1 - q3, q1 - q4, q2 + q3 + q4, q2 + q4, q4]
 # single q1: true
 # q list: Basic[q1, q2, q3, q4]
-# momenta list: Basic[q1 - q3, q1 - q2, q1 - q2 - q4, q1 - q4, q2 + q3 + q4, q1 - q2 - q3, q1, q4, q2 + q4]
+# momenta list: Basic[q1, q1 - q2, q1 - q2 - q3, q1 - q2 - q4, q1 - q3, q1 - q4, q2 + q3 + q4, q2 + q4, q4]
 # single q2: false
 # q list: Basic[q1, q1 - q2, q3, q4]
-# momenta list: Basic[q1 - q3, q2, q2 - q4, q1 - q4, q1 - q2 + q3 + q4, q2 - q3, q1, q4, q1 - q2 + q4]
+# momenta list: Basic[q1, q2, q2 - q3, q2 - q4, q1 - q3, q1 - q4, q1 - q2 + q3 + q4, q1 - q2 + q4, q4]
 # single q3: false
-# q list: Basic[q1, q1 - q2, q1 - q3, q4]
-# momenta list: Basic[q3, q2, q2 - q4, q1 - q4, 2*q1 - q2 - q3 + q4, -q1 + q2 + q3, q1, q4, q1 - q2 + q4]
+# q list: Basic[q1, q1 - q2, q2 - q3, q4]
+# momenta list: Basic[q1, q2, q3, q2 - q4, q1 - q2 + q3, q1 - q4, q1 - q3 + q4, q1 - q2 + q4, q4]
 # single q4: true
-# q list: Basic[q1, q1 - q2, q1 - q3, q4]
-# momenta list: Basic[q3, q2, q2 - q4, q1 - q4, 2*q1 - q2 - q3 + q4, -q1 + q2 + q3, q1, q4, q1 - q2 + q4]
+# q list: Basic[q1, q1 - q2, q2 - q3, q4]
+# momenta list: Basic[q1, q2, q3, q2 - q4, q1 - q2 + q3, q1 - q4, q1 - q3 + q4, q1 - q2 + q4, q4]
 # qi_indices_partition: [[1, 2, 3, 4]]
 # mom_indices_partition: [[1, 2, 3, 4, 5, 6, 7, 8, 9]]
-# ERROR: LoadError: AssertionError: isempty(same_sign_qiqj_mom_list) || isempty(opposite_sign_qiqj_mom_list)
+
+### There is no way for keeping the relative signs between q's.
+# julia> include("test-generate_loop_mom_canonicalization_map_v1.jl")
+#   Activating project at `~/workspace/FeAmGen-SeRA-NumAMF-test`
+# origin momenta list: Basic[q1, q1 - q2, q1 - q2 - q3, q1 - q2 - q4, q1 - q3, q1 - q4, q2 + q3 + q4, q2 + q4, q4]
+# single q1: true
+# q list: Basic[q1, q2, q3, q4]
+# momenta list: Basic[q1, q1 - q2, q1 - q2 - q3, q1 - q2 - q4, q1 - q3, q1 - q4, q2 + q3 + q4, q2 + q4, q4]
+# single q2: false
+# q list: Basic[q1, q1 + q2, q3, q4]
+# momenta list: Basic[q1, -q2, -q2 - q3, -q2 - q4, q1 - q3, q1 - q4, q1 + q2 + q3 + q4, q1 + q2 + q4, q4]
+# single q3: false
+# q list: Basic[q1, q1 + q2, -q2 + q3, q4]
+# momenta list: Basic[q1, -q2, -q3, -q2 - q4, q1 + q2 - q3, q1 - q4, q1 + q3 + q4, q1 + q2 + q4, q4]
+# single q4: true
+# q list: Basic[q1, q1 + q2, -q2 + q3, q4]
+# momenta list: Basic[q1, -q2, -q3, -q2 - q4, q1 + q2 - q3, q1 - q4, q1 + q3 + q4, q1 + q2 + q4, q4]
+# qi_indices_partition: [[1, 2, 3, 4]]
+# mom_indices_partition: [[1, 2, 3, 4, 5, 6, 7, 8, 9]]

@@ -5,7 +5,7 @@ using Markdown
 using InteractiveUtils
 
 # ╔═╡ 9c6deb19-72f7-4c65-a560-685edb411f8c
-using Graphs, GraphPlot, StatsBase
+using Graphs, GraphPlot, LinearAlgebra, StatsBase, SymEngine
 
 # ╔═╡ 052e7e7c-ec0e-456a-8a2e-7479742eade6
 calc_vertex_weights(incidence_mat::Matrix{<:Integer})::Vector{Int8}	=	Int8[
@@ -34,16 +34,14 @@ function incidence_to_adjacency(incidence_mat::Matrix{<:Integer})::Matrix{Int8}
 		vertex_indices	=	findall(index -> !iszero(edge[index]), 1:num_vertex)
 		@assert sum(edge) == 2 && (length(vertex_indices) == 2 || length(vertex_indices) == 1)
 
-		if length(vertex_indices) == 1
-			vertex_index								=	first(vertex_indices)
-			adjacency_mat[vertex_index, vertex_index]	+=	2
-		else
-			first_index, second_index					=	vertex_indices
-			adjacency_mat[first_index, second_index]	+=	1
-			adjacency_mat[second_index, first_index]	+=	1
-		end
+		first_index	=	first(vertex_indices)
+		last_index	=	last(vertex_indices)
+		
+		adjacency_mat[first_index, last_index]	+=	1
+		adjacency_mat[last_index, first_index]	+=	1
 	end
 	@assert sum(adjacency_mat) == sum(incidence_mat)
+	@show adjacency_mat
 
 	return	adjacency_mat
 end
@@ -84,7 +82,12 @@ function generate_random_incidence_matrix(
 end
 
 # ╔═╡ d149b057-12e4-4bb8-86a2-ef3390868a2e
-function generate_random_connected_graph(n_loop::Integer)::SimpleGraph{<:Integer}
+# function generate_random_connected_graph(n_loop::Integer)::SimpleGraph{<:Integer}
+function generate_random_connected_graph(n_loop::Integer)::Tuple{
+	SimpleGraph{<:Integer},
+	Matrix{Int8},
+	Matrix{Int8}
+}
 	incidence_mat	=	generate_random_incidence_matrix(n_loop)
 	adjacency_mat	=	incidence_to_adjacency(incidence_mat)
 	the_graph		=	Graph(adjacency_mat)
@@ -94,29 +97,105 @@ function generate_random_connected_graph(n_loop::Integer)::SimpleGraph{<:Integer
 		the_graph		=	Graph(adjacency_mat)
 	end
 
-	return the_graph
+	return the_graph, incidence_mat, adjacency_mat
+end
+
+# ╔═╡ 7241a867-2b7d-4a36-8b30-4597b38e0ae8
+function generate_denominator_momentum_list(incidence_mat::Matrix{<:Integer})::Vector{Basic}
+	signed_incidence_mat	=	deepcopy(incidence_mat)
+	
+	for col ∈ eachcol(signed_incidence_mat)
+		vertex_index		=	findlast(!iszero, col)
+		col[vertex_index]	-=	2
+		@assert sum(col) == 0
+	end
+	
+	n_edge		=	size(signed_incidence_mat, 2)
+	n_vertex	=	size(signed_incidence_mat, 1)
+	n_loop		=	n_edge - n_vertex + 1
+	n_rank		=	rank(signed_incidence_mat)
+	@assert n_rank == n_edge - n_loop
+
+	qi_list 	=	[Basic("q$ii") for ii ∈ 1:n_loop]
+	mom_list	=	Vector{Basic}(undef, n_edge)
+
+	self_loop_indices	=	Integer[]
+
+	# Gaussian elimination
+	row_index	=	1
+	for edge_index ∈ 1:n_edge
+		mat_col	=	signed_incidence_mat[:, edge_index]
+
+		vertex_indices	=	findall(!iszero, mat_col)
+		if isempty(vertex_indices)
+			push!(self_loop_indices, edge_index)
+		else
+			setdiff!(vertex_indices, 1:(row_index-1))
+			if !isempty(vertex_indices)
+				row_main_element, the_vertex_index	=	findmax(mat_col[vertex_indices])
+				the_vertex_index 					=	vertex_indices[the_vertex_index]
+				setdiff!(vertex_indices, the_vertex_index)
+				for vertex_index ∈ vertex_indices
+					signed_incidence_mat[vertex_index, :]	-=	(mat_col[vertex_index] // row_main_element) * signed_incidence_mat[the_vertex_index, :]
+				end
+				signed_incidence_mat[row_index, :], signed_incidence_mat[the_vertex_index, :] = signed_incidence_mat[the_vertex_index, :], signed_incidence_mat[row_index, :]
+			end
+			row_index	+=	1
+		end
+	end
+	# end Gaussian elimination
+
+	mom_list[self_loop_indices]		=	qi_list[1:length(self_loop_indices)]
+	num_not_self_loop				=	n_loop - length(self_loop_indices)
+	not_self_loop_indices			=	setdiff(1:n_edge, self_loop_indices)
+	non_simple_mom_indices			=	Integer[]
+	for mom_index ∈ not_self_loop_indices
+		if rank(signed_incidence_mat[:, non_simple_mom_indices]) == n_rank
+			break
+		end
+		if rank(signed_incidence_mat[:, non_simple_mom_indices]) != rank(signed_incidence_mat[:, union(non_simple_mom_indices, mom_index)])
+			push!(non_simple_mom_indices, mom_index)
+		end
+	end
+	setdiff!(not_self_loop_indices, non_simple_mom_indices)
+	mom_list[not_self_loop_indices]	=	qi_list[length(self_loop_indices)+1:end]
+
+	@assert num_not_self_loop == length(not_self_loop_indices)
+	@assert	n_rank == length(non_simple_mom_indices)
+
+	signed_incidence_mat	=	Basic.(signed_incidence_mat)
+	
+	mom_list[non_simple_mom_indices]	=	- inv(
+		signed_incidence_mat[1:n_rank, non_simple_mom_indices]
+	) * (
+		signed_incidence_mat[1:n_rank, not_self_loop_indices] * mom_list[not_self_loop_indices]
+	)
+	return	expand.(mom_list)
 end
 
 # ╔═╡ fe8dc9f0-461e-4aaa-b926-98ed7c8fd9b7
-the_graph		=	generate_random_connected_graph(rand(2:10))
+the_graph, incidence_mat, adjacency_mat	=	generate_random_connected_graph(rand(2:10))
 
-# ╔═╡ 03542569-c7f3-4664-a7b5-a0bbec55795a
-adjacency_matrix(the_graph)
-
-# ╔═╡ 22d424aa-57f1-4e1d-b96b-0e40acbed2c5
+# ╔═╡ 09547c5f-a7ef-4c42-be8a-edc83153e21a
 gplot(the_graph, nodelabel=1:nv(the_graph), edgelabel=1:ne(the_graph))
+
+# ╔═╡ 4ead37cd-2732-47bb-ad0f-2493678857b0
+generate_denominator_momentum_list(incidence_mat)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 GraphPlot = "a2cc645c-3eea-5389-862e-a155d0052231"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
 
 [compat]
 GraphPlot = "~0.5.2"
 Graphs = "~1.7.4"
 StatsBase = "~0.33.21"
+SymEngine = "~0.8.7"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -125,7 +204,11 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "ae315fa723a07d9475093f39a3c5ce6ae1ff815a"
+project_hash = "56480ca46053cbd9c97c7bc91d4c88788191f1e4"
+
+[[deps.ArgTools]]
+uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
+version = "1.1.1"
 
 [[deps.ArnoldiMethod]]
 deps = ["LinearAlgebra", "Random", "StaticArrays"]
@@ -164,10 +247,10 @@ uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.12.10"
 
 [[deps.Compat]]
-deps = ["Dates", "LinearAlgebra", "UUIDs"]
-git-tree-sha1 = "61fdd77467a5c3ad071ef8277ac6bd6af7dd4c04"
+deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
+git-tree-sha1 = "78bee250c6826e1cf805a88b7f1e86025275d208"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.6.0"
+version = "3.46.0"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -209,11 +292,24 @@ git-tree-sha1 = "2fb1e02f2b635d0845df5d7c167fec4dd739b00d"
 uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 version = "0.9.3"
 
+[[deps.Downloads]]
+deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
+uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+version = "1.6.0"
+
+[[deps.FileWatching]]
+uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
+
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
 git-tree-sha1 = "335bfdceacc84c5cdf16aadc768aa5ddfc5383cc"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.4"
+
+[[deps.GMP_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "781609d7-10c4-51f6-84f2-b8444358ff6d"
+version = "6.2.1+2"
 
 [[deps.GraphPlot]]
 deps = ["ArnoldiMethod", "ColorTypes", "Colors", "Compose", "DelimitedFiles", "Graphs", "LinearAlgebra", "Random", "SparseArrays"]
@@ -252,15 +348,36 @@ git-tree-sha1 = "fa6287a4469f5e048d763df38279ee729fbd44e5"
 uuid = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
 version = "1.4.0"
 
+[[deps.JLLWrappers]]
+deps = ["Preferences"]
+git-tree-sha1 = "abc9885a7ca2052a736a600f7fa66209f96506e1"
+uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
+version = "1.4.1"
+
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.3"
 
+[[deps.LibCURL]]
+deps = ["LibCURL_jll", "MozillaCACerts_jll"]
+uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
+version = "0.6.3"
+
+[[deps.LibCURL_jll]]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
+version = "7.84.0+0"
+
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
+
+[[deps.LibSSH2_jll]]
+deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
+uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
+version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -278,6 +395,17 @@ version = "0.3.20"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
+[[deps.MPC_jll]]
+deps = ["Artifacts", "GMP_jll", "JLLWrappers", "Libdl", "MPFR_jll", "Pkg"]
+git-tree-sha1 = "9618bed470dcb869f944f4fe4a9e76c4c8bf9a11"
+uuid = "2ce0c516-f11f-5db3-98ad-e0e1048fbd70"
+version = "1.2.1+0"
+
+[[deps.MPFR_jll]]
+deps = ["Artifacts", "GMP_jll", "Libdl"]
+uuid = "3a97d323-0669-5f0c-9066-3539efd106a3"
+version = "4.1.1+1"
+
 [[deps.MacroTools]]
 deps = ["Markdown", "Random"]
 git-tree-sha1 = "42324d08725e200c23d4dfb549e0d5d89dede2d2"
@@ -287,6 +415,11 @@ version = "0.5.10"
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
+
+[[deps.MbedTLS_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
+version = "2.28.0+0"
 
 [[deps.Measures]]
 git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
@@ -302,6 +435,10 @@ version = "1.1.0"
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
+[[deps.MozillaCACerts_jll]]
+uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
+version = "2022.2.1"
+
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.2.0"
@@ -310,6 +447,17 @@ version = "1.2.0"
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.20+0"
+
+[[deps.OpenLibm_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
+version = "0.8.1+0"
+
+[[deps.OpenSpecFun_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "13652491f6856acfd2db29360e1bbcd4565d04f1"
+uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
+version = "0.5.5+0"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
@@ -322,6 +470,11 @@ git-tree-sha1 = "151d91d63d8d6c1a5789ecb7de51547e00480f1b"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "2.5.4"
 
+[[deps.Pkg]]
+deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
+uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+version = "1.8.0"
+
 [[deps.Preferences]]
 deps = ["TOML"]
 git-tree-sha1 = "47e5f437cc0e7ef2ce8406ce1e7e24d44915f88d"
@@ -332,9 +485,19 @@ version = "1.3.0"
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
+[[deps.REPL]]
+deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
+uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
+
 [[deps.Random]]
 deps = ["SHA", "Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[[deps.RecipesBase]]
+deps = ["SnoopPrecompile"]
+git-tree-sha1 = "261dddd3b862bd2c940cf6ca4d1c8fe593e457c8"
+uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+version = "1.3.3"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
@@ -383,6 +546,12 @@ version = "1.1.0"
 deps = ["LinearAlgebra", "Random"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
+[[deps.SpecialFunctions]]
+deps = ["ChainRulesCore", "IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
+git-tree-sha1 = "d75bda01f8c31ebb72df80a46c88b25d1c79c56d"
+uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
+version = "2.1.7"
+
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
 git-tree-sha1 = "6954a456979f23d05085727adb17c4551c19ecd1"
@@ -410,10 +579,27 @@ git-tree-sha1 = "d1bf48bfcc554a3761a133fe3a9bb01488e06916"
 uuid = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 version = "0.33.21"
 
+[[deps.SymEngine]]
+deps = ["Compat", "Libdl", "LinearAlgebra", "RecipesBase", "SpecialFunctions", "SymEngine_jll"]
+git-tree-sha1 = "6cf88a0b98c758a36e6e978a41e8a12f6f5cdacc"
+uuid = "123dc426-2d89-5057-bbad-38513e3affd8"
+version = "0.8.7"
+
+[[deps.SymEngine_jll]]
+deps = ["Artifacts", "GMP_jll", "JLLWrappers", "Libdl", "MPC_jll", "MPFR_jll", "Pkg"]
+git-tree-sha1 = "3cd0f249ae20a0093f839738a2f2c1476d5581fe"
+uuid = "3428059b-622b-5399-b16f-d347a77089a4"
+version = "0.8.1+0"
+
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 version = "1.0.0"
+
+[[deps.Tar]]
+deps = ["ArgTools", "SHA"]
+uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
+version = "1.10.1"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
@@ -426,10 +612,25 @@ uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
+[[deps.Zlib_jll]]
+deps = ["Libdl"]
+uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
+version = "1.2.12+3"
+
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
 version = "5.1.1+0"
+
+[[deps.nghttp2_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
+version = "1.48.0+0"
+
+[[deps.p7zip_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+version = "17.4.0+0"
 """
 
 # ╔═╡ Cell order:
@@ -439,8 +640,9 @@ version = "5.1.1+0"
 # ╠═ab0d80a3-ef8a-4271-98f3-bb5d6ac09f36
 # ╠═0ffac9a9-baf0-4166-9a80-3de5a4dae081
 # ╠═d149b057-12e4-4bb8-86a2-ef3390868a2e
+# ╠═7241a867-2b7d-4a36-8b30-4597b38e0ae8
 # ╠═fe8dc9f0-461e-4aaa-b926-98ed7c8fd9b7
-# ╠═03542569-c7f3-4664-a7b5-a0bbec55795a
-# ╠═22d424aa-57f1-4e1d-b96b-0e40acbed2c5
+# ╠═09547c5f-a7ef-4c42-be8a-edc83153e21a
+# ╠═4ead37cd-2732-47bb-ad0f-2493678857b0
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

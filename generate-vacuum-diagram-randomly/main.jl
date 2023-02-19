@@ -5,18 +5,18 @@ using Markdown
 using InteractiveUtils
 
 # ╔═╡ 9c6deb19-72f7-4c65-a560-685edb411f8c
-using Graphs, GraphPlot, LinearAlgebra, StatsBase, SymEngine
+using	Combinatorics, Graphs, GraphPlot, LinearAlgebra, StatsBase, SymEngine
 
 # ╔═╡ 052e7e7c-ec0e-456a-8a2e-7479742eade6
-calc_vertex_weights(incidence_mat::Matrix{<:Integer})::Vector{Int8}	=	Int8[
+calc_vertex_weights(incidence_mat::Matrix{<:Integer})::Vector{<:Integer}	=	Int[
 	4 - sum(vertex_row)
 	for vertex_row ∈ eachrow(incidence_mat)
 ]
 
 # ╔═╡ bb8e2540-6a49-4869-988d-924447f10014
-function generate_weighted_vertex_list(incidence_mat::Matrix{<:Integer})::Vector{Int8}
+function generate_weighted_vertex_list(incidence_mat::Matrix{<:Integer})::Vector{<:Integer}
 	weight_list				=	calc_vertex_weights(incidence_mat)
-	weighted_vertex_list	=	Int8[]
+	weighted_vertex_list	=	Int[]
 	for vertex_index ∈ eachindex(weight_list)
 		append!(
 			weighted_vertex_list,
@@ -27,9 +27,9 @@ function generate_weighted_vertex_list(incidence_mat::Matrix{<:Integer})::Vector
 end
 
 # ╔═╡ ab0d80a3-ef8a-4271-98f3-bb5d6ac09f36
-function incidence_to_adjacency(incidence_mat::Matrix{<:Integer})::Matrix{Int8}
+function incidence_to_adjacency(incidence_mat::Matrix{<:Integer})::Matrix{<:Integer}
 	num_vertex		=	size(incidence_mat, 1)
-	adjacency_mat	=	zeros(Int8, num_vertex, num_vertex)
+	adjacency_mat	=	zeros(Int, num_vertex, num_vertex)
 	for edge ∈ eachcol(incidence_mat)
 		vertex_indices	=	findall(index -> !iszero(edge[index]), 1:num_vertex)
 		@assert sum(edge) == 2 && (length(vertex_indices) == 2 || length(vertex_indices) == 1)
@@ -49,7 +49,7 @@ end
 # ╔═╡ 0ffac9a9-baf0-4166-9a80-3de5a4dae081
 function generate_random_incidence_matrix(
 	n_loop::Integer
-)::Matrix{Int8}
+)::Matrix{<:Integer}
 	n_edge		=	rand((2 * (n_loop - 1)):(3 * (n_loop - 1)))
 	n_vertex	=	n_edge - n_loop + 1
 	avg_degree	=	2 * n_edge / n_vertex
@@ -59,7 +59,7 @@ function generate_random_incidence_matrix(
 	println("vertex: $n_vertex")
 	println("average degree of graph: $avg_degree")
 
-	incidence_mat	=	zeros(Int8, n_vertex, n_edge)
+	incidence_mat	=	zeros(Int, n_vertex, n_edge)
 	while true
 		for edge_index ∈ 1:n_edge
 			weighted_vetex_list		=	generate_weighted_vertex_list(incidence_mat)
@@ -85,8 +85,8 @@ end
 # function generate_random_connected_graph(n_loop::Integer)::SimpleGraph{<:Integer}
 function generate_random_connected_graph(n_loop::Integer)::Tuple{
 	SimpleGraph{<:Integer},
-	Matrix{Int8},
-	Matrix{Int8}
+	Matrix{<:Integer},
+	Matrix{<:Integer}
 }
 	incidence_mat	=	generate_random_incidence_matrix(n_loop)
 	adjacency_mat	=	incidence_to_adjacency(incidence_mat)
@@ -102,89 +102,454 @@ end
 
 # ╔═╡ 7241a867-2b7d-4a36-8b30-4597b38e0ae8
 function generate_denominator_momentum_list(incidence_mat::Matrix{<:Integer})::Vector{Basic}
-	signed_incidence_mat	=	deepcopy(incidence_mat)
-	
-	for col ∈ eachcol(signed_incidence_mat)
-		vertex_index		=	findlast(!iszero, col)
-		col[vertex_index]	-=	2
-		@assert sum(col) == 0
-	end
-	
-	n_edge		=	size(signed_incidence_mat, 2)
-	n_vertex	=	size(signed_incidence_mat, 1)
+
+	n_edge		=	size(incidence_mat, 2)
+	n_vertex	=	size(incidence_mat, 1)
 	n_loop		=	n_edge - n_vertex + 1
-	n_rank		=	rank(signed_incidence_mat)
-	@assert n_rank == n_edge - n_loop
 
-	qi_list 	=	[Basic("q$ii") for ii ∈ 1:n_loop]
-	mom_list	=	Vector{Basic}(undef, n_edge)
-
-	self_loop_indices	=	Integer[]
-
-	# Gaussian elimination
-	row_index	=	1
+	signed_incidence_mat	=	deepcopy(incidence_mat)
+	self_loop_edge_indices	=	Int[]
 	for edge_index ∈ 1:n_edge
-		mat_col	=	signed_incidence_mat[:, edge_index]
-
-		vertex_indices	=	findall(!iszero, mat_col)
-		if isempty(vertex_indices)
-			push!(self_loop_indices, edge_index)
-		else
-			setdiff!(vertex_indices, 1:(row_index-1))
-			if !isempty(vertex_indices)
-				row_main_element, the_vertex_index	=	findmax(mat_col[vertex_indices])
-				the_vertex_index 					=	vertex_indices[the_vertex_index]
-				setdiff!(vertex_indices, the_vertex_index)
-				for vertex_index ∈ vertex_indices
-					signed_incidence_mat[vertex_index, :]	-=	(mat_col[vertex_index] // row_main_element) * signed_incidence_mat[the_vertex_index, :]
-				end
-				signed_incidence_mat[row_index, :], signed_incidence_mat[the_vertex_index, :] = signed_incidence_mat[the_vertex_index, :], signed_incidence_mat[row_index, :]
-			end
-			row_index	+=	1
+		vertex_index		=	findlast(
+			!iszero,
+			signed_incidence_mat[:, edge_index]	
+		)
+		signed_incidence_mat[vertex_index, edge_index]	-=	2
+		if iszero(signed_incidence_mat[:, edge_index])
+			push!(self_loop_edge_indices, edge_index)
 		end
 	end
-	# end Gaussian elimination
+	n_rank	=	rank(signed_incidence_mat)
+	@assert	(iszero ∘ sum)(signed_incidence_mat, dims=1)
+	@assert	n_rank == n_edge - n_loop
 
-	mom_list[self_loop_indices]		=	qi_list[1:length(self_loop_indices)]
-	num_not_self_loop				=	n_loop - length(self_loop_indices)
-	not_self_loop_indices			=	setdiff(1:n_edge, self_loop_indices)
-	non_simple_mom_indices			=	Integer[]
-	for mom_index ∈ not_self_loop_indices
-		if rank(signed_incidence_mat[:, non_simple_mom_indices]) == n_rank
-			break
-		end
-		if rank(signed_incidence_mat[:, non_simple_mom_indices]) != rank(signed_incidence_mat[:, union(non_simple_mom_indices, mom_index)])
-			push!(non_simple_mom_indices, mom_index)
-		end
-	end
-	setdiff!(not_self_loop_indices, non_simple_mom_indices)
-	mom_list[not_self_loop_indices]	=	qi_list[length(self_loop_indices)+1:end]
+	qi_list 				=	[Basic("q$ii") for ii ∈ 1:n_loop]
+	mom_list 				=	zeros(Basic, n_edge)
+	# mom_determination_flags =	zeros(Bool, n_edge)
 
-	@assert num_not_self_loop == length(not_self_loop_indices)
-	@assert	n_rank == length(non_simple_mom_indices)
-
-	signed_incidence_mat	=	Basic.(signed_incidence_mat)
-	
-	mom_list[non_simple_mom_indices]	=	- inv(
-		signed_incidence_mat[1:n_rank, non_simple_mom_indices]
-	) * (
-		signed_incidence_mat[1:n_rank, not_self_loop_indices] * mom_list[not_self_loop_indices]
+	redundant_vertex_index	=	findlast(
+		vertex_index -> n_rank == rank(
+			signed_incidence_mat[
+				setdiff(1:n_vertex, vertex_index),
+				begin:end
+			]
+		),
+		1:n_vertex
 	)
-	return	expand.(mom_list)
+	selected_vertex_indices	=	setdiff(1:n_vertex, redundant_vertex_index)
+	# @show selected_vertex_indices
+
+	# selected_edge_indices		=	Vector{Int}(undef, n_rank)
+	# for comb ∈ combinations(
+	# 	setdiff(
+	# 		n_edge:-1:1, self_loop_edge_indices
+	# 	),
+	# 	n_rank
+	# )
+	# 	# @show comb
+	# 	if rank(
+	# 		signed_incidence_mat[
+	# 			setdiff(1:n_vertex, redundant_vertex_index),
+	# 			reverse(comb)
+	# 		]
+	# 	) == n_rank
+	# 		selected_edge_indices	=	reverse(comb)
+	# 	end
+	# end
+	selected_edge_indices		=	Int[]
+	tmp_edge_indices			=	setdiff(n_edge:-1:1, self_loop_edge_indices)
+	while length(selected_edge_indices) < n_rank
+		for edge_index ∈ tmp_edge_indices
+			last_matrix	=	signed_incidence_mat[:, selected_edge_indices]
+			this_matrix	=	hcat(
+				last_matrix,
+				signed_incidence_mat[:, edge_index]
+			)
+			if rank(last_matrix) + 1 == rank(this_matrix)
+				push!(selected_edge_indices, edge_index)
+			end
+		end
+	end
+	sort!(selected_edge_indices)
+	# @show selected_edge_indices
+	independent_edge_indices	=	setdiff(1:n_edge, selected_edge_indices)
+	
+	mom_list[independent_edge_indices]	=	qi_list
+	# mom_determination_flags[independet_edge_indices]	.=	true
+
+	selected_incidence_mat	=	Basic.(
+		signed_incidence_mat[
+			selected_vertex_indices,
+			selected_edge_indices
+		]
+	)
+	RHS_vector	=	- signed_incidence_mat[
+		selected_vertex_indices,
+		independent_edge_indices
+	] * qi_list
+	
+	mom_list[selected_edge_indices]	=	inv(selected_incidence_mat) * RHS_vector
+
+	mom_list	=	expand.(mom_list)
+	
+	@assert	iszero((expand).(signed_incidence_mat * mom_list))
+	
+	return	mom_list
+end
+
+# ╔═╡ 853fb92e-d77a-48ce-a802-48d3b22ff994
+function disjoint_loop_momenta_partition(
+	mom_list::Vector{Basic}	# linear combination of any momenta list
+)::Vector{Vector{Basic}}	# partition of indices for input mom_list
+	q_list			=	free_symbols(mom_list)
+	sort!(q_list,  by=(qi -> Meta.parse(string(qi)[2:end])))
+	
+	rest_mom_list 	=	deepcopy(mom_list)
+	mom_list_partition	=	Vector{Basic}[]
+
+	while !isempty(q_list)
+		this_q_partition	=	[first(q_list)]
+		this_mom_partition	=	Basic[]
+
+		setdiff!(q_list, this_q_partition)
+
+		match_mom_list	=	filter(
+			mom_ -> (!iszero ∘ coeff)(mom_, first(this_q_partition)),
+			rest_mom_list
+		)
+		match_q_list	=	filter(
+			q_ -> any((!iszero ∘ coeff).(match_mom_list, q_)),
+			q_list
+		)
+		union!(this_q_partition, match_q_list)
+		union!(this_mom_partition, match_mom_list)
+		setdiff!(q_list, match_q_list)
+		setdiff!(rest_mom_list, match_mom_list)
+
+		while !isempty(match_q_list)
+			match_mom_list	=	filter(
+				mom_ -> any((!iszero ∘ coeff).(mom_, match_q_list)),
+				rest_mom_list
+			)
+			match_q_list 	=	filter(
+				q_ -> any((!iszero ∘ coeff).(match_mom_list, q_)),
+				q_list
+			)
+			union!(this_q_partition, match_q_list)
+			union!(this_mom_partition, match_mom_list)
+			setdiff!(q_list, match_q_list)
+			setdiff!(rest_mom_list, match_mom_list)
+		end
+
+		# push!(q_indices_partition, this_q_partition)
+		push!(mom_list_partition, this_mom_partition)
+	end
+	@assert all(iszero, rest_mom_list)
+
+	# return	q_indices_partition, mom_indices_partition
+	return	mom_list_partition
+end	# function
+
+
+# ╔═╡ 20a6f040-a808-4826-95f9-9ab70b72fb89
+function make_same_opposite_sign_pair_list(
+	mom_list::Vector{Basic}
+)::Tuple{
+	Vector{Tuple{Basic, Basic}},	# :same
+	Vector{Tuple{Basic, Basic}}		# :opposite
+}
+	q_list	=	free_symbols(mom_list)
+	sort!(q_list, by=(qi -> Meta.parse(string(qi)[2:end])))
+
+	same_sign_pair_list		=	Vector{Tuple{Basic, Basic}}()
+    opposite_sign_pair_list	=	Vector{Tuple{Basic, Basic}}()
+	for qi_index ∈ eachindex(q_list)
+		qi	=	q_list[qi_index]
+		for qj ∈ q_list[qi_index+1:end]
+			# find the momentum where both qi and qj have non-zero coefficients
+			same_sign_qiqj_mom_list		=	Vector{Basic}()
+			opposite_sign_qiqj_mom_list	=	Vector{Basic}()
+			for mom ∈ mom_list
+				qi_coeff	=	coeff(mom, qi)
+				iszero(qi_coeff) && continue
+				qj_coeff	=	coeff(mom, qj)
+				iszero(qj_coeff) && continue
+
+				if qi_coeff * qj_coeff > 0
+					push!(same_sign_qiqj_mom_list, mom)
+				else
+					push!(opposite_sign_qiqj_mom_list, mom)
+				end # if
+			end # for mom
+			# @assert isempty(same_sign_qiqj_mom_list) || isempty(opposite_sign_qiqj_mom_list)
+
+			!isempty(same_sign_qiqj_mom_list) && push!(same_sign_pair_list, (qi, qj))
+			!isempty(opposite_sign_qiqj_mom_list) && push!(opposite_sign_pair_list, (qi, qj))
+		end # for qj
+	end # for qi_index
+
+	return	same_sign_pair_list, opposite_sign_pair_list
+	
+end
+
+# ╔═╡ dcb7ba6c-18e4-498a-8d31-16242c238aee
+function has_loop_momenta_sign_conflict(
+	same_sign_pair_list::Vector{Tuple{Basic, Basic}},
+	opposite_sign_pair_list::Vector{Tuple{Basic, Basic}}
+)::Tuple{
+	Bool,
+	Union{
+		Tuple{Basic, Basic},
+		Missing
+	}
+}
+	# for (qi, qj) ∈ combinations(q_list, 2)
+	# 	has_qi_qj_mom_list	=	filter(
+	# 		mom_ -> !iszero(coeff(mom_, qi) * coeff(mom_, qj)),
+	# 		mom_list
+	# 	)
+	# 	if isempty(has_qi_qj_mom_list)
+	# 		continue
+	# 	end
+		
+	# 	relative_sign_list	=	coeff.(has_qi_qj_mom_list, qi) .* coeff.(has_qi_qj_mom_list, qj)
+	# 	@assert	abs.(relative_sign_list) == one.(relative_sign_list)
+	# 	first_sign	=	first(relative_sign_list)
+	# 	for sign ∈ Base.rest(relative_sign_list)
+	# 		if first_sign != sign
+	# 			return	true, qi, qj
+	# 		end
+	# 	end
+	# end
+	# return	false, missing, missing
+
+	if isempty(same_sign_pair_list) && isempty(opposite_sign_pair_list)
+		return	false, missing
+	end
+
+	q_list	=	union(same_sign_pair_list..., opposite_sign_pair_list...)
+	sort!(q_list, by=(qi -> Meta.parse(string(qi)[2:end])))
+	
+	first_same_sign_qi_list		=	Basic[first(q_list)]
+    first_opposite_sign_qi_list	=	Basic[]
+	while !isempty(same_sign_pair_list) || !isempty(opposite_sign_pair_list)
+		first_same_sign_pair_list   =   filter(
+			one_pair -> !(isempty ∘ intersect)(one_pair, first_same_sign_qi_list),
+			same_sign_pair_list
+		)
+        union!(first_same_sign_qi_list, first_same_sign_pair_list...)
+        setdiff!(same_sign_pair_list, first_same_sign_pair_list)
+
+		first_opposite_sign_pair_list   =   filter(
+			one_pair -> !(isempty ∘ intersect)(one_pair, first_same_sign_qi_list),
+			opposite_sign_pair_list
+		)
+		for one_pair ∈ first_opposite_sign_pair_list
+			tmp	=	setdiff(one_pair, first_same_sign_qi_list)
+			if !isempty(tmp)
+				union!(first_opposite_sign_qi_list, tmp)
+			else
+				return true, one_pair
+			end
+		end
+		# union!(
+		# 	first_opposite_sign_qi_list,
+		# 	[
+		# 		setdiff(one_pair, first_same_sign_qi_list)
+		# 		for one_pair ∈ first_opposite_sign_pair_list
+		# 	]...
+		# )
+		setdiff!(opposite_sign_pair_list, first_opposite_sign_pair_list)
+
+		first_opposite_sign_pair_list   =   filter(
+			one_pair -> !(isempty ∘ intersect)(one_pair, first_opposite_sign_qi_list),
+			same_sign_pair_list
+		)
+		union!(first_opposite_sign_qi_list, first_opposite_sign_pair_list...)
+		setdiff!(same_sign_pair_list, first_opposite_sign_pair_list)
+
+		first_same_sign_pair_list   =   filter(
+			one_pair -> !(isempty ∘ intersect)(one_pair, first_opposite_sign_qi_list),
+			opposite_sign_pair_list
+		)
+		for one_pair ∈ first_same_sign_pair_list
+			tmp	=	setdiff(one_pair, first_opposite_sign_qi_list)
+			if !isempty(tmp)
+				union!(first_same_sign_qi_list, tmp)
+			else
+				return	true, one_pair
+			end
+		end
+		# union!(
+		# 	first_same_sign_qi_list,
+		# 	[
+		# 		setdiff(one_pair, first_opposite_sign_qi_list)
+		# 		for one_pair ∈ first_same_sign_pair_list
+		# 	]...
+		# )
+		setdiff!(opposite_sign_pair_list, first_same_sign_pair_list)
+	end # while
+
+	for (qi, qj) ∈ Iterators.product(first_same_sign_qi_list, first_opposite_sign_qi_list)
+		if qi == qj
+			return	true, (qi, qj)
+		end
+	end
+	
+	return	false, missing
+end
+
+# ╔═╡ 580e5cb1-a991-4efc-935b-b59216a6e3a1
+function main(
+	vacuum_momenta_list::Vector{Basic}
+)
+	mom_list	=	deepcopy(vacuum_momenta_list)
+	q_list		=	free_symbols(vacuum_momenta_list)
+	sort!(q_list,  by=(qi -> Meta.parse(string(qi)[2:end])))
+	for (mom_index, mom_) ∈ enumerate(mom_list)
+		coeff_list					=	coeff.(mom_, q_list)
+		first_non_zero_coeff_index	=	findfirst(!iszero, coeff_list)
+		if !isnothing(first_non_zero_coeff_index)
+			first_coeff			=	coeff_list[first_non_zero_coeff_index]
+			mom_				*=	inv(first_coeff)
+			mom_list[mom_index]	= 	expand(mom_)
+		end
+	end
+	unique!(mom_list)
+	filter!(!iszero, mom_list)
+	sort!(
+		mom_list,
+		by=(
+			mom_ -> (
+				(length ∘ free_symbols)(mom_),
+				(first ∘ findmin)((Meta.parse ∘ (str -> str[2:end]) ∘ string).(free_symbols(mom_)))
+			)
+		)
+	)
+	@show mom_list
+	
+	num_edge 	=	size(mom_list, 1)
+	num_q		=	length(q_list)
+
+	coeff_mat	=	reduce(hcat, [coeff.(mom_list, q_) for q_ ∈ q_list])
+	@show coeff_mat
+
+	target_coeff_mat	=	zero(coeff_mat)
+	if !iszero(num_edge - num_q)
+		for comb ∈ combinations(
+			sort(
+				[
+					[parse(Int, num_str, base=10) for num_str ∈ str]
+					for str ∈ string.(setdiff((2^num_q):-1:1, 2 .^ (0:num_q)), base=2, pad=num_q)
+				],
+				by=(v -> (sum(v), -v))
+			),
+			num_edge - num_q
+		)
+			tmp_coeff_mat	=	vcat(
+				I(num_q),
+				(transpose ∘ reduce)(hcat, comb)
+			)
+			@show tmp_coeff_mat
+			@show (rank ∘ float)(coeff_mat)
+			@show (rank ∘ float ∘ hcat)(coeff_mat, tmp_coeff_mat)
+			if (rank ∘ float)(coeff_mat) == (rank ∘ float ∘ hcat)(coeff_mat, tmp_coeff_mat)
+				target_coeff_mat	=	tmp_coeff_mat
+				break
+			end
+		end
+	else
+		target_coeff_mat	=	coeff_mat
+	end
+	target_coeff_mat
 end
 
 # ╔═╡ fe8dc9f0-461e-4aaa-b926-98ed7c8fd9b7
-the_graph, incidence_mat, adjacency_mat	=	generate_random_connected_graph(rand(2:10))
+the_graph, incidence_mat, adjacency_mat	=	generate_random_connected_graph(4)
 
 # ╔═╡ 09547c5f-a7ef-4c42-be8a-edc83153e21a
 gplot(the_graph, nodelabel=1:nv(the_graph), edgelabel=1:ne(the_graph))
 
+# ╔═╡ 15399315-0046-4142-aa83-c3358b261123
+# ╠═╡ disabled = true
+#=╠═╡
+incidence_mat = [0 1 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0; 0 0 1 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0; 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 1 0 0; 0 0 0 1 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0; 0 0 0 0 0 0 0 1 1 0 0 0 0 0 1 0 0 0 0 0 0 0; 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1; 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0; 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0; 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0; 0 0 0 0 0 0 0 0 0 1 0 1 1 0 0 0 0 0 0 0 0 0; 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0; 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1; 0 1 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0 0 1 0 0 0; 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 1 0 0 0 0]
+  ╠═╡ =#
+
 # ╔═╡ 4ead37cd-2732-47bb-ad0f-2493678857b0
-generate_denominator_momentum_list(incidence_mat)
+original_vacuum_momenta_list	=	generate_denominator_momentum_list(incidence_mat)
+
+# ╔═╡ 3a650f45-7832-42ac-b27a-f0b2e0b5c432
+main(original_vacuum_momenta_list)
+
+# ╔═╡ cfd75835-e569-487a-83e7-c6bbe907e3ad
+begin
+	test_mom_matrix	=	Basic.(
+		[
+			"q1 + q2 - q3",
+			"q2 - q3 - q4",
+			"q1 - q4",
+			"q1 + q2",
+			"q2 - q4",
+			"q3 - q4"
+		]
+	)
+	q_list		=	free_symbols(test_mom_matrix)
+	sort!(q_list,  by=(qi -> Meta.parse(string(qi)[2:end])))
+	for (mom_index, mom_) ∈ enumerate(test_mom_matrix)
+		coeff_list					=	coeff.(mom_, q_list)
+		first_non_zero_coeff_index	=	findfirst(!iszero, coeff_list)
+		if !isnothing(first_non_zero_coeff_index)
+			first_coeff					=	coeff_list[first_non_zero_coeff_index]
+			mom_						*=	inv(first_coeff)
+			test_mom_matrix[mom_index]	= 	expand(mom_)
+		end
+	end
+
+	unique!(test_mom_matrix)
+	filter!(!iszero, test_mom_matrix)
+	sort!(
+		test_mom_matrix,
+		by=(
+			mom_ -> (
+				(length ∘ free_symbols)(mom_),
+				(first ∘ findmin)((Meta.parse ∘ (str -> str[2:end]) ∘ string).(free_symbols(mom_)))
+			)
+		)
+	)
+
+	num_edge 	=	size(test_mom_matrix, 1)
+	num_q		=	length(q_list)
+
+	coeff_mat	=	hcat([coeff.(test_mom_matrix, q_) for q_ ∈ q_list]...)
+	@show tmp_mat		=	vcat(coeff_mat, Basic.(I(num_q)))
+	
+	for qi_index ∈ 1:num_q
+		
+		q_indices_perm	=	sort(
+			qi_index:num_q,
+			by=q_index -> findfirst(!iszero, tmp_mat[:, q_index])
+		)
+		tmp_mat[:, qi_index:num_q]	=	tmp_mat[:, q_indices_perm]
+		@assert	!iszero(tmp_mat[qi_index, qi_index])
+		tmp_mat[:, qi_index]		/=	tmp_mat[qi_index, qi_index]
+		
+		for qj_index ∈ (qi_index + 1):num_q
+			tmp_factor				=	tmp_mat[qi_index, qj_index] / tmp_mat[qi_index, qi_index]
+			tmp_mat[:, qj_index]	-=	tmp_factor * tmp_mat[:, qi_index]
+		end
+	end
+
+	for qi_index ∈ num_q:-1:1
+		base_input	=	tmp_mat[:, qi_index]
+	end
+	tmp_mat
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 GraphPlot = "a2cc645c-3eea-5389-862e-a155d0052231"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -192,6 +557,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
 
 [compat]
+Combinatorics = "~1.0.2"
 GraphPlot = "~0.5.2"
 Graphs = "~1.7.4"
 StatsBase = "~0.33.21"
@@ -204,7 +570,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "56480ca46053cbd9c97c7bc91d4c88788191f1e4"
+project_hash = "99a8291ea9b215150fe22bfa2671e4c000f4fa1c"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -245,6 +611,11 @@ deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
 git-tree-sha1 = "fc08e5930ee9a4e03f84bfb5211cb54e7769758a"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.12.10"
+
+[[deps.Combinatorics]]
+git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
+uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+version = "1.0.2"
 
 [[deps.Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
@@ -635,14 +1006,21 @@ version = "17.4.0+0"
 
 # ╔═╡ Cell order:
 # ╠═9c6deb19-72f7-4c65-a560-685edb411f8c
-# ╠═052e7e7c-ec0e-456a-8a2e-7479742eade6
-# ╠═bb8e2540-6a49-4869-988d-924447f10014
-# ╠═ab0d80a3-ef8a-4271-98f3-bb5d6ac09f36
-# ╠═0ffac9a9-baf0-4166-9a80-3de5a4dae081
-# ╠═d149b057-12e4-4bb8-86a2-ef3390868a2e
+# ╟─052e7e7c-ec0e-456a-8a2e-7479742eade6
+# ╟─bb8e2540-6a49-4869-988d-924447f10014
+# ╟─ab0d80a3-ef8a-4271-98f3-bb5d6ac09f36
+# ╟─0ffac9a9-baf0-4166-9a80-3de5a4dae081
+# ╟─d149b057-12e4-4bb8-86a2-ef3390868a2e
 # ╠═7241a867-2b7d-4a36-8b30-4597b38e0ae8
+# ╟─853fb92e-d77a-48ce-a802-48d3b22ff994
+# ╟─20a6f040-a808-4826-95f9-9ab70b72fb89
+# ╟─dcb7ba6c-18e4-498a-8d31-16242c238aee
+# ╠═580e5cb1-a991-4efc-935b-b59216a6e3a1
 # ╠═fe8dc9f0-461e-4aaa-b926-98ed7c8fd9b7
 # ╠═09547c5f-a7ef-4c42-be8a-edc83153e21a
+# ╠═15399315-0046-4142-aa83-c3358b261123
 # ╠═4ead37cd-2732-47bb-ad0f-2493678857b0
+# ╠═3a650f45-7832-42ac-b27a-f0b2e0b5c432
+# ╠═cfd75835-e569-487a-83e7-c6bbe907e3ad
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

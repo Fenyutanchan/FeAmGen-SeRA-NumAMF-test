@@ -19,13 +19,15 @@ include("generate_denominator_momenta.jl")
 function main() # resolve the ambiguous variables in soft scope
 
 ### begin random generation 
-n_loop  =   rand(2:10)
+# n_loop  =   rand(2:10)
+n_loop  =   4
 
 qi_list =   [Basic("q$ii") for ii ∈ 1:n_loop]
 q_list  =   deepcopy(qi_list)
 
 _, incidence_mat, _ =   generate_random_connected_graph(n_loop)
 vacumm_mom_list     =   generate_denominator_momentum_list(incidence_mat)
+@show vacumm_mom_list
 
 filter!(!iszero, vacumm_mom_list)
 unique!(vacumm_mom_list)
@@ -43,6 +45,21 @@ map!(
 ) # just the thing `SeRA.normalize_loop_mom()` will do.
 unique!(vacumm_mom_list)
 sort!(vacumm_mom_list, by=string)
+# vacumm_mom_list =   Basic.(
+#     [
+#         "q1",
+#         "q2",
+#         "q2 + q4 + q5",
+#         "q2 - q3",
+#         "q2 - q6",
+#         "q3",
+#         "q3 + q4",
+#         "q4",
+#         "q4 + q5",
+#         "q5",
+#         "q6"
+#     ]
+# )
 
 # n_den  =   length(vacumm_mom_list)
 

@@ -70,6 +70,13 @@ function generate_random_incidence_matrix(
         end
     end
 
+    # sort edges
+    sorted_col_indices  =   sort(
+        (eachindex ∘ eachcol)(incidence_mat),
+        by=(col_index -> findall(!iszero, incidence_mat[:, col_index]))
+    )
+    incidence_mat   =   incidence_mat[:, sorted_col_indices]
+
     return incidence_mat
 end
 

@@ -7,3 +7,6 @@
 [submodule "SeRA.jl"]
 	path = SeRA.jl
 	url = git@github.com:Fenyutanchan/SeRA2.jl.git
+[submodule "SymEngineExt.jl"]
+	path = SymEngineExt.jl
+	url = git@github.com:Fenyutanchan/SymEngineExt.jl.git

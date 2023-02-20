@@ -1,9 +1,10 @@
 [deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 FeAmGen = "92bc0bee-949a-4e30-bda4-7bc0a90d92b9"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NumAMF = "61818568-3a36-4501-84fe-78a065ee432b"
-SeRA = "91cf2d6d-5298-43b6-b923-c3820f8fd459"
+SeRA = "1d6ceff8-6ede-4257-9899-d45cadd4edda"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
 SymEngineExt = "eb43aea2-30a6-470d-b25b-3f3789752db4"
